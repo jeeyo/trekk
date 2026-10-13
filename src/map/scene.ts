@@ -1,4 +1,4 @@
-import type { Feature, LineString } from 'geojson';
+import type { Feature, FeatureCollection, LineString } from 'geojson';
 import maplibregl, { type GeoJSONSource, type Map as MLMap } from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
 import { REFERENCE_HEIGHT, type CameraState } from '../camera/types';
@@ -42,15 +42,19 @@ export interface SceneOptions {
   interactive?: boolean;
 }
 
-type Line = Feature<LineString>;
-const lineFeature = (coords: [number, number][]): Line => ({
-  type: 'Feature',
-  properties: {},
-  geometry: {
-    type: 'LineString',
-    coordinates: coords.length > 1 ? coords : [coords[0], coords[0]],
-  },
-});
+type Line = Feature<LineString> | FeatureCollection;
+/** A line feature; degenerate (zero-length) lines become an empty collection. */
+const lineFeature = (coords: [number, number][]): Line => {
+  const distinct = coords.filter(
+    (c, i) => i === 0 || c[0] !== coords[i - 1][0] || c[1] !== coords[i - 1][1],
+  );
+  if (distinct.length < 2) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'LineString', coordinates: distinct },
+  };
+};
 
 /** A MapLibre map showing one track in one preset's style, driven frame by frame. */
 export class Scene {
@@ -86,7 +90,11 @@ export class Scene {
       maxPitch: 85,
       // Centre elevation comes from the track (deterministic) instead of async terrain queries.
       centerClampedToGround: false,
-      canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
+      // MSAA is free on phone GPUs but crippling on software GL; ?noaa turns it off for CI.
+      canvasContextAttributes: {
+        preserveDrawingBuffer: true,
+        antialias: !(typeof location !== 'undefined' && location.search.includes('noaa')),
+      },
       transformRequest: (url) => ({ url: rewriteUpstream(url) }),
     });
     this.map.on('error', (e) => {
@@ -224,22 +232,33 @@ export class Scene {
 
   /**
    * Resolve once every visible tile (and terrain) has loaded and a frame has been drawn with them.
-   * Checked after each render, so slow devices wait as long as they need (up to `timeoutMs`).
+   * Checked after each render and by a light poll: when the last tile *fails* (provider down),
+   * MapLibre doesn't schedule another render, so we force one. Slow devices wait as long as they
+   * need, up to `timeoutMs`.
    */
   idle(timeoutMs = 60000): Promise<void> {
     const m = this.map;
     return new Promise((resolve) => {
+      let finalRender = false;
+      const ready = () => m.loaded() && m.areTilesLoaded();
       const finish = () => {
         clearTimeout(timer);
-        m.off('render', check);
+        clearInterval(poll);
+        m.off('render', onRender);
         m.off('idle', finish);
         resolve();
       };
-      const check = () => {
-        if (m.loaded() && m.areTilesLoaded()) finish();
+      const onRender = () => {
+        if (finalRender || ready()) finish();
       };
+      const poll = setInterval(() => {
+        if (!finalRender && ready()) {
+          finalRender = true;
+          m.triggerRepaint();
+        }
+      }, 200);
       const timer = setTimeout(finish, timeoutMs);
-      m.on('render', check);
+      m.on('render', onRender);
       m.on('idle', finish);
       m.triggerRepaint();
     });

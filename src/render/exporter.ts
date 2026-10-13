@@ -101,12 +101,19 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
 
     // Warm the tile cache along the whole camera path.
     const step = Math.max(1, Math.round(fps / 2));
-    for (let i = 0; i <= frames; i += step) {
+    const warm = !(typeof location !== 'undefined' && location.search.includes('nowarm'));
+    for (let i = 0; warm && i <= frames; i += step) {
       aborted(o.signal);
       setFrame(i / frames);
       const t0 = performance.now();
       await scene.idle(60000);
-      if (DEBUG) console.log(`[export] warm ${i} idle ${Math.round(performance.now() - t0)}ms`);
+      if (DEBUG) {
+        const m = scene.map;
+        const pending = Object.keys(m.getStyle().sources).filter((id) => !m.isSourceLoaded(id));
+        console.log(
+          `[export] warm ${i} idle ${Math.round(performance.now() - t0)}ms pending=${pending.join(',')}`,
+        );
+      }
       report('tiles', i / frames);
     }
 
@@ -118,12 +125,9 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
       await scene.idle(60000);
       if (DEBUG) {
         const m = scene.map;
-        const st = m.style as unknown as { sourceCaches: Record<string, { loaded(): boolean }> };
-        const pending = Object.entries(st.sourceCaches)
-          .filter(([, c]) => !c.loaded())
-          .map(([k]) => k);
+        const pending = Object.keys(m.getStyle().sources).filter((id) => !m.isSourceLoaded(id));
         console.log(
-          `[export] frame ${i} idle ${Math.round(performance.now() - t0)}ms tilesLoaded=${m.areTilesLoaded()} pending=${pending.join(',')} moving=${m.isMoving()}`,
+          `[export] frame ${i} idle ${Math.round(performance.now() - t0)}ms tiles=${m.areTilesLoaded()} pending=${pending.join(',')}`,
         );
       }
       ctx.fillStyle = preset.overlays.theme === 'dark' ? '#0b0f0d' : '#f3f1ea';
