@@ -10,22 +10,42 @@ import mtCoreURL from '@ffmpeg/core-mt?url';
 import mtWasmURL from '@ffmpeg/core-mt/wasm?url';
 import mtWorkerURL from '@ffmpeg/core-mt/worker?url';
 
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
 export async function transcodeToH264(
   input: Uint8Array,
   opts: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
 ): Promise<Uint8Array> {
-  const ff = new FFmpeg();
-  ff.on('progress', ({ progress }) => opts.onProgress?.(Math.max(0, Math.min(1, progress))));
+  const make = () => {
+    const f = new FFmpeg();
+    f.on('progress', ({ progress }) => opts.onProgress?.(Math.max(0, Math.min(1, progress))));
+    return f;
+  };
+  let ff = make();
   const abort = () => ff.terminate();
   opts.signal?.addEventListener('abort', abort);
   try {
     // Threads need SharedArrayBuffer, i.e. a cross-origin isolated page (our COOP/COEP headers).
-    const threads = globalThis.crossOriginIsolated && (navigator.hardwareConcurrency ?? 1) > 1;
-    await ff.load(
-      threads
-        ? { coreURL: mtCoreURL, wasmURL: mtWasmURL, workerURL: mtWorkerURL }
-        : { coreURL, wasmURL },
-    );
+    let threads = globalThis.crossOriginIsolated && (navigator.hardwareConcurrency ?? 1) > 1;
+    if (threads) {
+      try {
+        await withTimeout(
+          ff.load({ coreURL: mtCoreURL, wasmURL: mtWasmURL, workerURL: mtWorkerURL }),
+          30000,
+        );
+      } catch {
+        // multi-threaded core unavailable on this device: use the single-threaded one
+        ff.terminate();
+        ff = make();
+        threads = false;
+      }
+    }
+    if (!threads) await ff.load({ coreURL, wasmURL });
     await ff.writeFile('in.mp4', input);
     const code = await ff.exec([
       '-i',

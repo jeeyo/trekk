@@ -76,6 +76,10 @@ export default defineConfig({
     ),
   },
   preview: { headers: crossOriginIsolation },
+  build: {
+    // ffmpeg's pthread worker must be a real same-origin file: as a data: URL it can't import the core.
+    assetsInlineLimit: (file: string) => (file.includes('ffmpeg-core') ? false : undefined),
+  },
   optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] },
   test: {
     include: ['tests/unit/**/*.test.ts'],
