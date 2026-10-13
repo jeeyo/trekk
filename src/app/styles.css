@@ -29,3 +29,62 @@ body {
 .muted {
   color: var(--muted);
 }
+.debug {
+  padding: 16px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.debug h1 {
+  font-size: 22px;
+  margin: 4px 0 12px;
+  color: var(--accent);
+}
+.debug h2 {
+  font-size: 14px;
+  margin: 18px 0 8px;
+  font-weight: 600;
+}
+.debug .note {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 10px;
+  line-height: 1.4;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  margin-top: 8px;
+  color: var(--muted);
+}
+.legend i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.stats div {
+  background: #18221d;
+  border-radius: 10px;
+  padding: 8px;
+}
+.stats dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.stats dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
