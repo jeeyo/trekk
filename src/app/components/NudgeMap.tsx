@@ -48,7 +48,8 @@ export function NudgeMap({
       transformRequest: (url) => ({ url: rewriteUpstream(url) }),
     });
     map.current = m;
-    m.on('load', () => {
+    // style.load (not load): 'load' waits for every tile, which may never settle if imagery fails
+    m.once('style.load', () => {
       m.addSource('track', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       m.addLayer({
         id: 'track-casing',

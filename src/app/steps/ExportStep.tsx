@@ -42,6 +42,7 @@ export function ExportStep() {
   const [result, setResult] = useState<ExportResult>();
   const [error, setError] = useState<string>();
   const [url, setUrl] = useState<string>();
+  const [posterUrl, setPosterUrl] = useState<string>();
   const abort = useRef<AbortController>(undefined);
   // Debug: ?clip=5 renders a short clip (used by automated checks).
   const clip = Number(new URLSearchParams(location.search).get('clip')) || undefined;
@@ -86,6 +87,7 @@ export function ExportStep() {
       });
       setResult(r);
       setUrl(URL.createObjectURL(r.blob));
+      if (r.poster) setPosterUrl(URL.createObjectURL(r.poster));
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') {
         setPhase(undefined);
@@ -181,7 +183,15 @@ export function ExportStep() {
 
       {result && url && (
         <div className="result">
-          <video src={url} controls playsInline loop muted className="result-video" />
+          <video
+            src={url}
+            poster={posterUrl}
+            controls
+            playsInline
+            loop
+            muted
+            className="result-video"
+          />
           <p className="hint">
             {result.width}×{result.height} · {result.frames} frames ·{' '}
             {(result.blob.size / 1e6).toFixed(1)} MB · {result.codec}

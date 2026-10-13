@@ -66,3 +66,16 @@ npm run samples      # regenerate public/samples/*.gpx from the real DEM (needs 
 
 `scripts/progress-m*.ts` drive the app in headless Chromium (Playwright) and capture the progress
 screenshots; `?debug=track` shows the GPS cleanup debug view and `?clip=5` exports a 5 s test clip.
+
+## Verification
+
+- `npm test` — 24 unit tests (GPX parsing, GCJ-02/BD-09 transforms and auto-detection, spike /
+  cold-start / jitter cleanup, Kalman smoothing, elevation gain, camera timelines).
+- `npm run e2e` — Playwright on iPhone 14 and Pixel 7 profiles (upload → track → style → preview,
+  track-fix sheet). `E2E_EXPORT=1` adds a full MP4 export (slow on machines without a GPU).
+- Exports were verified end to end in headless Chromium: 1080×1920 H.264 High, 30 fps, correct
+  frame count (`ffprobe`), see `docs/progress/m5-*`.
+
+Headless/CI notes: software WebGL is ~100× slower than a phone GPU, and open-source Chromium has no
+H.264 encoder, so exports there use the VP9 → ffmpeg.wasm path. `?res=540`, `?noaa` and `?nowarm`
+make test exports finish quickly.

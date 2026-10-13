@@ -29,6 +29,8 @@ export interface ExportOptions {
 
 export interface ExportResult {
   blob: Blob;
+  /** last rendered frame (PNG), shown as the video poster */
+  poster?: Blob;
   codec: string;
   transcoded: boolean;
   frames: number;
@@ -151,6 +153,7 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
       await sink.add(i / fps, 1 / fps, i % (fps * 2) === 0);
       report('frames', (i + 1) / frames);
     }
+    const poster = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
     let bytes = await sink.finish();
     let transcoded = false;
     if (sink.needsTranscode) {
@@ -165,6 +168,7 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
     report('done', 1);
     return {
       blob: new Blob([bytes as BlobPart], { type: 'video/mp4' }),
+      poster: poster ?? undefined,
       codec: transcoded ? `h264 (via ${sink.codec})` : sink.codec,
       transcoded,
       frames,
