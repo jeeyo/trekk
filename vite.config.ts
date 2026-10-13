@@ -2,10 +2,13 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // Dev mirrors the container: /tiles/<source>/... is proxied to the upstream provider.
+// Same env names as the container, so a dev setup can point at a mirror or cache.
+const env = process.env;
 const upstreams: Record<string, string> = {
-  terrain: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium',
-  satellite: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g',
-  vector: 'https://tiles.openfreemap.org',
+  terrain: env.UPSTREAM_TERRAIN_URL ?? 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium',
+  satellite:
+    env.UPSTREAM_SATELLITE_URL ?? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g',
+  vector: env.UPSTREAM_VECTOR_URL ?? 'https://tiles.openfreemap.org',
 };
 
 const crossOriginIsolation = {
