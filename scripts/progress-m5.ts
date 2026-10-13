@@ -9,7 +9,13 @@ mkdirSync('out', { recursive: true });
 const browser = await launch();
 try {
   const page = await phone(browser);
-  page.on('console', (m) => m.text().startsWith('[export] frame') && console.log(m.text()));
+  page.on(
+    'console',
+    (m) =>
+      m.text().startsWith('[export]') &&
+      console.log(new Date().toISOString().slice(11, 19), m.text()),
+  );
+  page.on('crash', () => console.log('PAGE CRASHED'));
   await page.goto(`${BASE}/?clip=${clip}${res}&debugExport`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: /Zermatt/ }).click();
   await page.getByText('pick a style').click();
