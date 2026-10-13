@@ -77,11 +77,15 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
   if (!codec)
     throw new ExportUnsupportedError('This browser cannot encode video (WebCodecs missing).');
 
-  // Off-screen map at exact output pixels.
+  // Off-screen map laid out like the phone preview (360 CSS px wide) and rendered at
+  // W/360 pixel ratio, so line weights, markers and framing match what the user previewed.
+  const ratio = W / 360;
+  const cssW = 360;
+  const cssH = Math.round((H / ratio) * preset.mapHeight);
   const host = document.createElement('div');
-  host.style.cssText = `position:fixed;left:-${W + 100}px;top:0;width:${W}px;height:${Math.round(H * preset.mapHeight)}px;pointer-events:none;`;
+  host.style.cssText = `position:fixed;left:-${cssW + 100}px;top:0;width:${cssW}px;height:${cssH}px;pointer-events:none;`;
   document.body.appendChild(host);
-  const scene = new Scene({ container: host, preset, track: o.track, pixelRatio: 1 });
+  const scene = new Scene({ container: host, preset, track: o.track, pixelRatio: ratio });
   const timeline = buildTimeline(o.track.anim, preset);
   const canvas = document.createElement('canvas');
   canvas.width = W;
