@@ -1,0 +1,83 @@
+# Rendered by the nginx image's envsubst entrypoint (/etc/nginx/templates → /etc/nginx/conf.d).
+# Only variables listed in NGINX_ENVSUBST_FILTER are substituted, so nginx's own $vars are safe.
+
+proxy_cache_path /var/cache/trekk levels=1:2 keys_zone=tiles:64m
+                 max_size=${TILE_CACHE_MAX_SIZE} inactive=${TILE_CACHE_TTL} use_temp_path=off;
+
+limit_req_zone $binary_remote_addr zone=tiles_rl:10m rate=${RATE_LIMIT};
+limit_req_status 429;
+
+# Real client IP from the owner's reverse proxy (TLS terminates there).
+set_real_ip_from ${TRUSTED_PROXY_CIDR};
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+resolver ${RESOLVER} valid=300s ipv6=off;
+
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml application/wasm application/manifest+json;
+    gzip_min_length 1024;
+
+    # Same-origin tiles let us be cross-origin isolated (SharedArrayBuffer for ffmpeg.wasm threads).
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # ---- Tile proxy: allow-listed upstreams only, never an open proxy ----
+    location ~ "^/tiles/terrain/(?<z>1[0-5]|[0-9])/(?<x>\d{1,5})/(?<y>\d{1,5})(\.png)?$" {
+        limit_req zone=tiles_rl burst=${RATE_BURST} nodelay;
+        set $upstream_url ${UPSTREAM_TERRAIN_URL}/$z/$x/$y.png;
+        proxy_pass $upstream_url;
+        include /etc/nginx/conf.d/snippets/tile-cache.conf;
+    }
+
+    location ~ "^/tiles/satellite/(?<z>1[0-7]|[0-9])/(?<x>\d{1,6})/(?<y>\d{1,6})(\.jpg)?$" {
+        limit_req zone=tiles_rl burst=${RATE_BURST} nodelay;
+        # EOX WMTS is {z}/{row=y}/{col=x}
+        set $upstream_url ${UPSTREAM_SATELLITE_URL}/$z/$y/$x.jpg;
+        proxy_pass $upstream_url;
+        include /etc/nginx/conf.d/snippets/tile-cache.conf;
+    }
+
+    location ~ "^/tiles/vector/(?<vpath>planet(/[A-Za-z0-9_]+/(1[0-4]|[0-9])/\d{1,5}/\d{1,5}\.pbf)?)$" {
+        limit_req zone=tiles_rl burst=${RATE_BURST} nodelay;
+        set $upstream_url ${UPSTREAM_VECTOR_URL}/$vpath;
+        proxy_pass $upstream_url;
+        include /etc/nginx/conf.d/snippets/tile-cache.conf;
+    }
+
+    location /tiles/ {
+        return 404;
+    }
+
+    # ---- App ----
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "require-corp" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+        try_files $uri =404;
+    }
+
+    location / {
+        add_header Cache-Control "no-cache" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "require-corp" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: data:; media-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+        try_files $uri $uri/ /index.html;
+    }
+}

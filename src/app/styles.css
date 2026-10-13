@@ -1,0 +1,31 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1512;
+  --fg: #eef3ee;
+  --muted: #9aaba1;
+  --accent: #ff7a3d;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+body {
+  margin: 0;
+}
+.hello {
+  padding: 48px 20px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.hello h1 {
+  color: var(--accent);
+  font-size: 40px;
+  margin: 0 0 12px;
+}
+.muted {
+  color: var(--muted);
+}

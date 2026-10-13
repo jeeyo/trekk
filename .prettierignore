@@ -1,0 +1,5 @@
+dist
+node_modules
+public/samples
+docs/progress
+package-lock.json

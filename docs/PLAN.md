@@ -1,35 +1,41 @@
 # Trekk — GPX → Instagram portrait trek animation
 
 ## Context
+
 The repo (`jeeyo/trekk`, branch `claude/gpx-trek-animation-plan-xak4fg`) is empty. We're building a website from scratch: the user uploads a GPX file from a trek and gets a 9:16 animation (1080×1920, 30 fps) of the route over 3D terrain and satellite imagery. They pick one of 8 presets, preview it, and download an MP4. It should use only open data, fix GPS problems (noise and drift, plus the China GCJ‑02/BD‑09 datum offset), and be cheap to host. It ships as a single Docker container.
 
 Decisions made: **render in the browser**, **Vite + React + TypeScript**, **handle both** datum offset and noise, a **mobile-first UI**, and **one Docker container** that serves the app and runs a caching tile proxy. The GPX never leaves the user's device. The server only serves static files and map tiles.
 
 ## Open data sources
-| Layer | Primary (open) | Notes / fallback |
-|---|---|---|
-| Terrain (DEM) | **AWS Terrain Tiles** (Mapzen "terrarium" PNG, Registry of Open Data), `s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`. Built from SRTM, GMTED, ETOPO1 and NED. Free, attribution required | **Mapterhorn** (open global terrain from Copernicus GLO‑30 and others, served as PMTiles) as a better-quality option. MapLibre reads terrarium natively as `raster-dem` with `encoding: "terrarium"` |
-| Satellite | **EOX Sentinel‑2 cloudless 2016** WMTS (`tiles.maps.eox.at`, layer `s2cloudless_3857`). **CC BY 4.0**, about 10 m, global | The 2018–2024 EOX mosaics are **CC BY‑NC‑SA**, so they're fine for non-commercial use only. For full control: Sentinel‑2 L2A COGs from AWS Earth Search / Copernicus Data Space served by self-hosted **TiTiler**. **USGS NAIP** (1 m, public domain, US only) as a regional high-res layer |
-| Vector basemap / trails / labels | **OpenFreeMap** or **Protomaps** PMTiles (OpenStreetMap data, ODbL) | Used for the "Topo" and "Night" presets and for auto-detecting the datum offset (matching the track to OSM paths) |
-| Hillshade | Computed client-side by MapLibre `hillshade` layer from the same DEM | — |
+
+| Layer                            | Primary (open)                                                                                                                                                                                               | Notes / fallback                                                                                                                                                                                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terrain (DEM)                    | **AWS Terrain Tiles** (Mapzen "terrarium" PNG, Registry of Open Data), `s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`. Built from SRTM, GMTED, ETOPO1 and NED. Free, attribution required | **Mapterhorn** (open global terrain from Copernicus GLO‑30 and others, served as PMTiles) as a better-quality option. MapLibre reads terrarium natively as `raster-dem` with `encoding: "terrarium"`                                                                                        |
+| Satellite                        | **EOX Sentinel‑2 cloudless 2016** WMTS (`tiles.maps.eox.at`, layer `s2cloudless_3857`). **CC BY 4.0**, about 10 m, global                                                                                    | The 2018–2024 EOX mosaics are **CC BY‑NC‑SA**, so they're fine for non-commercial use only. For full control: Sentinel‑2 L2A COGs from AWS Earth Search / Copernicus Data Space served by self-hosted **TiTiler**. **USGS NAIP** (1 m, public domain, US only) as a regional high-res layer |
+| Vector basemap / trails / labels | **OpenFreeMap** or **Protomaps** PMTiles (OpenStreetMap data, ODbL)                                                                                                                                          | Used for the "Topo" and "Night" presets and for auto-detecting the datum offset (matching the track to OSM paths)                                                                                                                                                                           |
+| Hillshade                        | Computed client-side by MapLibre `hillshade` layer from the same DEM                                                                                                                                         | —                                                                                                                                                                                                                                                                                           |
 
 Attribution text is generated per preset from the layers it uses and burned into the corner of the video, as the licences require.
 
 ## Architecture (rendering in the browser, tiles served by our container)
+
 ```
 GPX file ─► parse ─► clean (noise + datum) ─► derive (dist, gain, pace, time scaling)
         ─► preset config ─► MapLibre scene @1080×1920 ─► frame stepper
         ─► WebCodecs VideoEncoder (H.264) ─► Mediabunny MP4 mux ─► download
 ```
+
 - **Map engine:** MapLibre GL JS v5 with `terrain`, a `sky`/fog layer and `preserveDrawingBuffer: true`. It renders into an offscreen container sized exactly 1080×1920, with devicePixelRatio forced to 1. The visible preview is a scaled-down copy.
-- **Deterministic frame rendering** (not real-time screen capture): for frame *i*, compute camera and route progress for time *t = i/fps*, then `map.jumpTo(camera)`, update the route line source, `await map.once('idle')` so tiles and terrain are loaded, draw the map canvas plus the 2D overlay canvas (stats, elevation chart, title, attribution) onto a compositor canvas, then `new VideoFrame(compositor, {timestamp})` → `encoder.encode`. Quality doesn't depend on device speed. A slow device just takes longer.
+- **Deterministic frame rendering** (not real-time screen capture): for frame _i_, compute camera and route progress for time _t = i/fps_, then `map.jumpTo(camera)`, update the route line source, `await map.once('idle')` so tiles and terrain are loaded, draw the map canvas plus the 2D overlay canvas (stats, elevation chart, title, attribution) onto a compositor canvas, then `new VideoFrame(compositor, {timestamp})` → `encoder.encode`. Quality doesn't depend on device speed. A slow device just takes longer.
 - **Tile prefetch:** before rendering, walk the camera path, list the tiles each frame needs, and fetch them all up front with a progress bar. This avoids `idle` stalls mid-render.
 - **Encoding:** WebCodecs `VideoEncoder` (`avc1.640028`, about 12 Mbps, keyframe every 2 s), muxed with **Mediabunny** (the successor to mp4-muxer) into a fast-start MP4. If WebCodecs or H.264 isn't available, fall back to **ffmpeg.wasm** fed with PNG frames (slower, with a warning).
 - **Heavy work in Web Workers:** GPX parsing, cleaning, and computing the camera path.
 - **Tiles come from our own server:** the app requests every tile from `/tiles/<source>/{z}/{x}/{y}` on its own origin, and the container's caching proxy fetches it from the upstream provider once. See the next section.
 
 ## Mobile-first UI
+
 Most users will come straight from their phone after the hike, so we design for a 360–430 px wide portrait screen first and scale up for desktop.
+
 - **One-column, step-by-step flow:** Upload → Fix track → Pick preset → Preview → Export. A sticky bottom action bar keeps the primary button within thumb reach.
 - **Upload:** a large tap target that opens the file picker (`accept=".gpx,application/gpx+xml"`) and also handles iOS Files and Android "Share to" sources. Drag and drop is added on desktop only.
 - **Preset picker:** a horizontally swipeable carousel of 9:16 cards. Each card shows a short looping preview bundled with the site, so nothing renders before the user picks.
@@ -44,7 +50,9 @@ Most users will come straight from their phone after the hike, so we design for 
 - **Installable PWA:** add a manifest and service worker (`vite-plugin-pwa`) so the app shell and preset previews load offline on the trail. Map tiles still need a connection at render time.
 
 ## Server and tile cache (Docker)
+
 One container, built and run the same way everywhere (laptop, VPS or any container host).
+
 - **Image:** a multi-stage `Dockerfile`. Stage 1 (`node:22-alpine`) runs `npm ci && npm run build`. Stage 2 (`nginx:1.27-alpine`) copies `dist/` and the nginx config templates. It runs as a non-root user, with a `HEALTHCHECK` on `/healthz`.
 - **nginx serves:**
   - `/`: the built SPA, with hashed assets cached for a year (`immutable`) and `index.html` set to `no-cache`. Unknown paths fall back to `index.html`.
@@ -61,12 +69,13 @@ One container, built and run the same way everywhere (laptop, VPS or any contain
 - **Headers:**
   - Because tiles are now same-origin, we can send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. That turns on `SharedArrayBuffer`, so the ffmpeg.wasm fallback can use the faster multi-threaded core.
   - Also send a Content-Security-Policy, gzip/brotli compression for app assets, and the correct `Content-Type` for `.wasm`.
-- **Configuration:** environment variables are applied through nginx's built-in `/etc/nginx/templates` envsubst: `TILE_CACHE_MAX_SIZE`, `TILE_CACHE_TTL`, `UPSTREAM_TERRAIN_URL`, `UPSTREAM_SATELLITE_URL`, `UPSTREAM_VECTOR_URL`, `RATE_LIMIT`. That lets us swap in TiTiler or Mapterhorn later without rebuilding. Only the tile *source names* are compiled into the app, never upstream URLs.
+- **Configuration:** environment variables are applied through nginx's built-in `/etc/nginx/templates` envsubst: `TILE_CACHE_MAX_SIZE`, `TILE_CACHE_TTL`, `UPSTREAM_TERRAIN_URL`, `UPSTREAM_SATELLITE_URL`, `UPSTREAM_VECTOR_URL`, `RATE_LIMIT`. That lets us swap in TiTiler or Mapterhorn later without rebuilding. Only the tile _source names_ are compiled into the app, never upstream URLs.
 - **`docker-compose.yml`:** the `trekk` service, plus a named volume for the tile cache and a port mapping (`8080:8080`). The container speaks plain HTTP only. **TLS, the domain and the public reverse proxy are handled by the owner's existing infrastructure**, so the container won't include certificates or a TLS sidecar. HTTPS in front is required for WebCodecs, Web Share and the service worker. nginx trusts `X-Forwarded-For` and `X-Forwarded-Proto` from a configurable upstream range (`TRUSTED_PROXY_CIDR`, via `set_real_ip_from`), so per-IP rate limits apply to real client IPs rather than the proxy's IP.
 - **CI:** GitHub Actions runs lint, unit tests and `docker build` on every PR. On `main` (and version tags), it builds and pushes the image to GHCR (`ghcr.io/jeeyo/trekk`).
 - **Local development:** `npm run dev` uses Vite's `server.proxy` to map `/tiles/*` straight to the upstreams, so the frontend code doesn't change between development and the container.
 
 ## GPS cleanup pipeline (`src/track/`)
+
 1. **Parse** (`parseGpx.ts`): read `trk/trkseg/trkpt` (and fall back to `rte/rtept`) with `ele` and `time`. Multiple segments are kept and gaps between them marked. FIT/KML can come later.
 2. **Noise / AGPS drift** (`clean.ts`):
    - Drop invalid points (0,0; NaN; duplicate timestamps; timestamps that go backwards).
@@ -82,7 +91,9 @@ One container, built and run the same way everywhere (laptop, VPS or any contain
    - **Manual nudge:** the user can drag to apply a metre-level offset over the satellite layer, as a last resort for any area.
 
 ## Animation presets (`src/presets/*.ts`)
+
 Each preset is a declarative `PresetConfig`: base style, terrain exaggeration, camera mode with its parameters, line style, overlays, default duration (15/30/60 s) and an easing/time-warp function. The renderer is generic. Planned set (8):
+
 1. **Chase Cam:** satellite plus 3D terrain, camera behind the hiker at pitch 60°, bearing smoothed along the direction of travel.
 2. **Drone Orbit:** the camera slowly orbits the moving head of the line while the route draws.
 3. **Fly‑in Reveal:** starts at a high zoom-out of the region, dives onto the trailhead, follows the route, then pulls back to show the whole route.
@@ -95,6 +106,7 @@ Each preset is a declarative `PresetConfig`: base style, terrain exaggeration, c
 Shared overlays: trip title (editable), date, distance, duration, elevation gain, max altitude, units toggle (metric/imperial), a safe-area-aware layout for the Instagram Reels UI (keep text out of the top 220 px and bottom 380 px), and attribution.
 
 ## Project layout
+
 ```
 package.json  vite.config.ts  tsconfig.json  index.html
 src/
@@ -113,9 +125,11 @@ Dockerfile  docker-compose.yml  .dockerignore
 .github/workflows/  # ci.yml (lint, test, docker build), release.yml (push image to GHCR)
 tests/            # vitest unit tests + Playwright e2e
 ```
+
 Key dependencies: `maplibre-gl`, `pmtiles`, `@tmcw/togeojson` (GPX parsing), `@turf/*` (length, along, bearing, simplify), `mediabunny`, `@ffmpeg/ffmpeg` (lazy-loaded), `zustand` (state), `vitest`, `@playwright/test`.
 
 ## Milestones
+
 1. **Scaffold:** Vite, React, TS, lint and format, vitest, Playwright, Dockerfile and nginx config with the `/tiles` cache, compose file and CI. `docker compose up` serves a "hello" page plus cached tiles from day one.
 2. **Track core:** parse, clean, datum, stats, with unit tests on the sample GPX files.
 3. **Map scene and mobile shell:** MapLibre with terrarium terrain, EOX satellite and route line, loaded through `/tiles`. The mobile step flow and a live preview with a scrub bar.
@@ -124,7 +138,24 @@ Key dependencies: `maplibre-gl`, `pmtiles`, `@tmcw/togeojson` (GPX parsing), `@t
 6. **Remaining presets and overlays:** elevation chart, stats cards, safe areas, attribution.
 7. **UX polish and hardening:** the track-fix bottom sheet (smoothing slider, datum override, nudge), Web Share export, wake lock, the 720p fallback, multi-threaded ffmpeg.wasm fallback, PWA, desktop layout, and tuning of rate limits and cache sizes.
 
+## Execution: all milestones in one run, with screenshots after each
+
+- Work through milestones 1→7 without pausing. After each one: run lint, typecheck and unit tests, commit (`M<n>: …`), push to `claude/gpx-trek-animation-plan-xak4fg`, then capture progress and send it to the user before moving on.
+- **Screenshot script:** `scripts/screenshot.ts` (Playwright on the preinstalled Chromium at `/opt/pw-browsers`, with `--use-gl=angle --use-angle=swiftshader` for WebGL). It loads the app at iPhone-size (390×844, DPR 3) and saves PNGs to `docs/progress/m<n>-*.png`, which are committed so the progress is also visible in the repo. Each milestone sends its PNGs to the user with a short caption.
+  - M1: the hello page from the running container, plus terminal output showing `X-Cache-Status` MISS → HIT.
+  - M2: a debug page plotting raw vs cleaned tracks (noisy sample and GCJ‑02 sample), plus a vitest summary.
+  - M3: the mobile upload step, and the map preview with the route on 3D terrain.
+  - M4: a frame from each of Chase, Orbit and Topo.
+  - M5: export progress UI, plus a contact sheet of frames pulled from the exported MP4 with ffmpeg, and ffprobe output.
+  - M6: one frame from each of the 8 presets (contact sheet).
+  - M7: the track-fix bottom sheet, the share/download screen, and the desktop layout.
+- **Sandbox limits (user approved):**
+  - The network policy blocks `tiles.maps.eox.at` and `tiles.openfreemap.org`. AWS terrain tiles work. So screenshots of the satellite and vector presets render terrain with hillshade only, labelled "imagery unavailable in sandbox". The code still targets the real providers, and nothing is faked.
+  - Docker: start `dockerd` locally to build and run the container for the M1 and M7 container checks. If it can't run in this sandbox, say so and still verify the nginx config with `nginx -t` inside the build.
+- Sample GPX files are generated by a small script: synthetic but realistic tracks over real terrain (an Alpine loop, a Himalaya out-and-back, a China route offset into GCJ‑02, and a noisy one with injected spikes).
+
 ## Verification
+
 - `npm run test` (vitest):
   - GCJ‑02 round-trip error under 0.5 m against known reference pairs.
   - The spike filter removes injected outliers.

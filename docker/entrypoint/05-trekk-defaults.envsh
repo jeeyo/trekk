@@ -1,0 +1,14 @@
+#!/bin/sh
+# Sourced by the nginx image entrypoint before templates are rendered.
+export TILE_CACHE_MAX_SIZE="${TILE_CACHE_MAX_SIZE:-20g}"
+export TILE_CACHE_TTL="${TILE_CACHE_TTL:-30d}"
+export RATE_LIMIT="${RATE_LIMIT:-60r/s}"
+export RATE_BURST="${RATE_BURST:-400}"
+export TRUSTED_PROXY_CIDR="${TRUSTED_PROXY_CIDR:-127.0.0.1/32}"
+export CONTACT="${CONTACT:-https://github.com/jeeyo/trekk}"
+export UPSTREAM_TERRAIN_URL="${UPSTREAM_TERRAIN_URL:-https://s3.amazonaws.com/elevation-tiles-prod/terrarium}"
+export UPSTREAM_SATELLITE_URL="${UPSTREAM_SATELLITE_URL:-https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g}"
+export UPSTREAM_VECTOR_URL="${UPSTREAM_VECTOR_URL:-https://tiles.openfreemap.org}"
+# proxy_pass with variables needs a resolver; default to the container's nameserver.
+export RESOLVER="${RESOLVER:-$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)}"
+export NGINX_ENVSUBST_FILTER='^(TILE_CACHE_|RATE_|TRUSTED_PROXY_CIDR|CONTACT|UPSTREAM_|RESOLVER)'
