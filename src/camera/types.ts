@@ -4,6 +4,8 @@ export interface CameraState {
   zoom: number;
   bearing: number;
   pitch: number;
+  /** elevation of the centre point, metres above sea level (real, not exaggerated) */
+  elevation: number;
 }
 
 export const REFERENCE_HEIGHT = 1920;

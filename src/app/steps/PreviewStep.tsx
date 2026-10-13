@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_PRESET } from '../../presets';
 import { MapPreview } from '../components/MapPreview';
 import { Profile } from '../components/Profile';
 import { useStore } from '../store';
+import { usePresetTimeline } from '../usePreset';
+
+const DURATIONS = [15, 20, 30, 60];
 
 export function PreviewStep() {
-  const track = useStore((s) => s.track)!;
-  const preset = DEFAULT_PRESET;
+  const { track, preset, timeline } = usePresetTimeline();
+  const setDuration = useStore((s) => s.setDuration);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const raf = useRef(0);
@@ -27,9 +29,16 @@ export function PreviewStep() {
     return () => cancelAnimationFrame(raf.current);
   }, [playing, preset.durationS]);
 
+  if (!track || !timeline) return null;
   return (
     <section className="step preview">
-      <MapPreview track={track} preset={preset} t={t} />
+      <MapPreview
+        track={track}
+        preset={preset}
+        t={t}
+        cameraAt={timeline.cameraAt}
+        progressAt={timeline.progressAt}
+      />
       <div className="transport">
         <button
           className="round"
@@ -59,7 +68,19 @@ export function PreviewStep() {
         />
         <span className="time">{(t * preset.durationS).toFixed(1)}s</span>
       </div>
-      <Profile points={track.anim} progress={t} height={64} />
+      <div className="segmented" role="radiogroup" aria-label="Video length">
+        {DURATIONS.map((d) => (
+          <button
+            key={d}
+            role="radio"
+            aria-checked={preset.durationS === d}
+            onClick={() => setDuration(d)}
+          >
+            {d}s
+          </button>
+        ))}
+      </div>
+      <Profile points={track.anim} progress={timeline.progressAt(t)} height={56} />
     </section>
   );
 }

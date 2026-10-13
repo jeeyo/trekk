@@ -30,12 +30,15 @@ interface State {
   error?: string;
   fix: TrackFix;
   presetId: string;
+  /** video length override, seconds */
+  duration?: number;
   title: string;
   units: 'metric' | 'imperial';
   setStep(step: Step): void;
   loadFile(name: string, xml: string): Promise<void>;
   reprocess(fix: Partial<TrackFix>): Promise<void>;
   setPreset(id: string): void;
+  setDuration(s: number): void;
   setTitle(title: string): void;
   setUnits(u: 'metric' | 'imperial'): void;
   reset(): void;
@@ -85,7 +88,8 @@ export const useStore = create<State>((set, get) => ({
       set({ busy: false });
     }
   },
-  setPreset: (presetId) => set({ presetId }),
+  setPreset: (presetId) => set({ presetId, duration: undefined }),
+  setDuration: (duration) => set({ duration }),
   setTitle: (title) => set({ title }),
   setUnits: (units) => set({ units }),
   reset: () =>

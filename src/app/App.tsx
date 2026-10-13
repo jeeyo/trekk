@@ -1,17 +1,19 @@
 import { TrackDebug } from './debug/TrackDebug';
 import { PreviewStep } from './steps/PreviewStep';
+import { StyleStep } from './steps/StyleStep';
 import { TrackStep } from './steps/TrackStep';
 import { UploadStep } from './steps/UploadStep';
 import { STEPS, useStore, type Step } from './store';
 
 const NEXT: Partial<Record<Step, { to: Step; label: string }>> = {
-  track: { to: 'preview', label: 'Looks good — preview' },
+  track: { to: 'style', label: 'Looks good — pick a style' },
+  style: { to: 'preview', label: 'Preview this style' },
   preview: { to: 'export', label: 'Export video' },
 };
 
 const BACK: Partial<Record<Step, Step>> = {
   track: 'upload',
-  preview: 'track',
+  preview: 'style',
   style: 'track',
   export: 'preview',
 };
@@ -53,13 +55,20 @@ export function App() {
       <ol className="progress" aria-label="Steps">
         {STEPS.map((s, i) => (
           <li key={s.id} className={i < idx ? 'done' : i === idx ? 'current' : ''}>
-            {s.label}
+            {i < idx && !busy ? (
+              <button className="step-link" onClick={() => setStep(s.id)}>
+                {s.label}
+              </button>
+            ) : (
+              s.label
+            )}
           </li>
         ))}
       </ol>
       <main className="content">
         {step === 'upload' && <UploadStep />}
         {step === 'track' && <TrackStep />}
+        {step === 'style' && <StyleStep />}
         {step === 'preview' && <PreviewStep />}
       </main>
       {next && (

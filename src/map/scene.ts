@@ -84,6 +84,8 @@ export class Scene {
       pixelRatio: opts.pixelRatio,
       fadeDuration: 0,
       maxPitch: 85,
+      // Centre elevation comes from the track (deterministic) instead of async terrain queries.
+      centerClampedToGround: false,
       canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
       transformRequest: (url) => ({ url: rewriteUpstream(url) }),
     });
@@ -91,7 +93,11 @@ export class Scene {
       const id = (e as unknown as { sourceId?: string }).sourceId;
       if (id) this.failedSources.add(id);
     });
-    this.ready = new Promise((resolve) => this.map.once('load', () => resolve()));
+    // style.load is enough to add layers; tile completeness is awaited separately via idle().
+    this.ready = new Promise((resolve) => {
+      if (this.map.isStyleLoaded()) resolve();
+      else this.map.once('style.load', () => resolve());
+    });
     this.ready.then(() => this.addRoute());
   }
 
@@ -134,7 +140,10 @@ export class Scene {
       type: 'line',
       source: 'route',
       layout: lineLayout,
-      paint: { 'line-color': 'rgba(0,0,0,0.35)', 'line-width': line.width + 3 },
+      paint: {
+        'line-color': line.dash ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.35)',
+        'line-width': line.width + 3,
+      },
     });
     m.addLayer({
       id: 'route-line',
@@ -201,12 +210,15 @@ export class Scene {
   }
 
   setCamera(cam: CameraState) {
+    // Cameras are computed for a map of REFERENCE_HEIGHT * mapHeight px; rescale to this map.
     const h = this.map.getContainer().clientHeight || REFERENCE_HEIGHT;
+    const ref = REFERENCE_HEIGHT * this.opts.preset.mapHeight;
     this.map.jumpTo({
       center: cam.center,
-      zoom: cam.zoom + Math.log2(h / REFERENCE_HEIGHT),
+      zoom: cam.zoom + Math.log2(h / ref),
       bearing: cam.bearing,
       pitch: cam.pitch,
+      elevation: cam.elevation * this.opts.preset.exaggeration,
     });
   }
 

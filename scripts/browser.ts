@@ -39,3 +39,35 @@ export async function mapIdle(page: Page) {
 export async function scrubTo(page: Page, fraction: number) {
   await page.locator('input[type=range]').fill(String(Math.round(fraction * 1000)));
 }
+
+/** Lay several images side by side with captions and save as one PNG. */
+export async function contactSheet(
+  browser: Browser,
+  items: { path: string; label: string; sub?: string }[],
+  out: string,
+  opts: { columns?: number; width?: number; title?: string } = {},
+) {
+  const { readFileSync } = await import('node:fs');
+  const cols = opts.columns ?? items.length;
+  const w = opts.width ?? 300;
+  const cells = items
+    .map((it) => {
+      const b64 = readFileSync(it.path).toString('base64');
+      return `<figure><img src="data:image/png;base64,${b64}"/><figcaption><b>${it.label}</b>${it.sub ? `<span>${it.sub}</span>` : ''}</figcaption></figure>`;
+    })
+    .join('');
+  const page = await browser.newPage({
+    viewport: { width: cols * (w + 16) + 32, height: 400 },
+    deviceScaleFactor: 2,
+  });
+  await page.setContent(`<style>
+    body{margin:0;padding:16px;background:#0f1512;color:#eef3ee;font:14px system-ui}
+    h1{font-size:18px;margin:0 0 12px;color:#ff7a3d}
+    .g{display:grid;grid-template-columns:repeat(${cols},${w}px);gap:16px}
+    figure{margin:0} img{width:100%;border-radius:12px;display:block}
+    figcaption{margin-top:6px;display:flex;flex-direction:column;gap:2px} figcaption span{color:#9aaba1;font-size:12px}
+  </style>${opts.title ? `<h1>${opts.title}</h1>` : ''}<div class="g">${cells}</div>`);
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: out, fullPage: true });
+  await page.close();
+}

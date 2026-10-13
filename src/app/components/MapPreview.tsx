@@ -62,7 +62,12 @@ export function MapPreview({
 
   return (
     <div className="map-frame">
-      <div ref={el} className="map" data-ready={scene ? 'true' : undefined} />
+      <div
+        ref={el}
+        className="map"
+        style={{ height: `${preset.mapHeight * 100}%` }}
+        data-ready={scene ? 'true' : undefined}
+      />
       {imageryMissing && (
         <div className="badge">Satellite imagery unavailable — showing terrain relief</div>
       )}

@@ -10,7 +10,7 @@ const mercY = (lat: number) => {
 
 /** Camera that frames the whole route in a 9:16 frame (top-down zoom, then pitched). */
 export function fitRoute(
-  points: { lat: number; lon: number }[],
+  points: { lat: number; lon: number; ele?: number }[],
   opts: { pitch?: number; bearing?: number; padding?: number; frameHeight?: number } = {},
 ): CameraState {
   const [w, s, e, n] = bounds(points);
@@ -27,5 +27,7 @@ export function fitRoute(
   const pitch = opts.pitch ?? 0;
   // pitched views foreshorten the far side; back off a little
   const zoom = Math.min(zx, zy) - (pitch / 60) * 0.35;
-  return { center: [(w + e) / 2, (s + n) / 2], zoom, bearing: opts.bearing ?? 0, pitch };
+  const eles = points.map((p) => p.ele).filter((v): v is number => v !== undefined);
+  const elevation = eles.length ? (Math.min(...eles) + Math.max(...eles)) / 2 : 0;
+  return { center: [(w + e) / 2, (s + n) / 2], zoom, bearing: opts.bearing ?? 0, pitch, elevation };
 }
