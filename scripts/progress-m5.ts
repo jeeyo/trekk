@@ -4,11 +4,13 @@ import { BASE, contactSheet, launch, phone } from './browser';
 
 const preset = process.argv[2] ?? 'Chase Cam';
 const clip = Number(process.argv[3] ?? 5);
+const res = process.argv[4] ? `&res=${process.argv[4]}` : '';
 mkdirSync('out', { recursive: true });
 const browser = await launch();
 try {
   const page = await phone(browser);
-  await page.goto(`${BASE}/?clip=${clip}`, { waitUntil: 'networkidle' });
+  page.on('console', (m) => m.text().startsWith('[export] frame') && console.log(m.text()));
+  await page.goto(`${BASE}/?clip=${clip}${res}&debugExport`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: /Zermatt/ }).click();
   await page.getByText('pick a style').click();
   await page.getByRole('option', { name: preset }).click();
@@ -17,18 +19,18 @@ try {
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'docs/progress/m5-1-export.png' });
   await page.getByText('Render video').click();
-  await page.getByText('Rendering frames').waitFor({ timeout: 300_000 });
+  await page.getByText('Rendering frames').waitFor({ timeout: 1_800_000 });
   await page.waitForFunction(
     () => {
       const s = document.querySelector('.progress-row strong')?.textContent ?? '0';
       return parseInt(s) >= 50;
     },
     null,
-    { timeout: 600_000 },
+    { timeout: 3_600_000 },
   );
   await page.screenshot({ path: 'docs/progress/m5-2-rendering.png' });
   const t0 = Date.now();
-  await page.getByTestId('download').waitFor({ timeout: 1_200_000 });
+  await page.getByTestId('download').waitFor({ timeout: 3_600_000 });
   console.log('render finished, waited', (Date.now() - t0) / 1000, 's after 50%');
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'docs/progress/m5-3-result.png' });

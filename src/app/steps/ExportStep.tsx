@@ -32,7 +32,11 @@ export function ExportStep() {
   const { track, preset } = usePresetTimeline();
   const title = useStore((s) => s.title);
   const units = useStore((s) => s.units);
-  const res = useMemo(() => chooseResolution(), []);
+  const res = useMemo(() => {
+    // Debug: ?res=540 forces a smaller size (used by automated checks on GPU-less machines).
+    const forced = Number(new URLSearchParams(location.search).get('res'));
+    return forced ? { width: forced, height: Math.round((forced * 16) / 9) } : chooseResolution();
+  }, []);
   const [phase, setPhase] = useState<ExportPhase>();
   const [frac, setFrac] = useState(0);
   const [result, setResult] = useState<ExportResult>();

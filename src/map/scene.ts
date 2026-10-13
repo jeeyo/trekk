@@ -222,16 +222,26 @@ export class Scene {
     });
   }
 
-  /** Resolve once every visible tile (and terrain) has loaded and the frame is drawn. */
-  idle(timeoutMs = 20000): Promise<void> {
+  /**
+   * Resolve once every visible tile (and terrain) has loaded and a frame has been drawn with them.
+   * Checked after each render, so slow devices wait as long as they need (up to `timeoutMs`).
+   */
+  idle(timeoutMs = 60000): Promise<void> {
+    const m = this.map;
     return new Promise((resolve) => {
-      const timer = setTimeout(done, timeoutMs);
-      function done() {
+      const finish = () => {
         clearTimeout(timer);
+        m.off('render', check);
+        m.off('idle', finish);
         resolve();
-      }
-      this.map.once('idle', done);
-      this.map.triggerRepaint();
+      };
+      const check = () => {
+        if (m.loaded() && m.areTilesLoaded()) finish();
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      m.on('render', check);
+      m.on('idle', finish);
+      m.triggerRepaint();
     });
   }
 

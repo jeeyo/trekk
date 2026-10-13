@@ -41,6 +41,8 @@ export interface ExportResult {
 
 export class ExportUnsupportedError extends Error {}
 
+const DEBUG = typeof location !== 'undefined' && location.search.includes('debugExport');
+
 const aborted = (s?: AbortSignal) => {
   if (s?.aborted) throw new DOMException('Export cancelled', 'AbortError');
 };
@@ -102,7 +104,9 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
     for (let i = 0; i <= frames; i += step) {
       aborted(o.signal);
       setFrame(i / frames);
-      await scene.idle(15000);
+      const t0 = performance.now();
+      await scene.idle(60000);
+      if (DEBUG) console.log(`[export] warm ${i} idle ${Math.round(performance.now() - t0)}ms`);
       report('tiles', i / frames);
     }
 
@@ -110,7 +114,18 @@ export async function exportVideo(o: ExportOptions): Promise<ExportResult> {
       aborted(o.signal);
       const t = frames > 1 ? i / (frames - 1) : 0;
       setFrame(t);
-      await scene.idle(10000);
+      const t0 = performance.now();
+      await scene.idle(60000);
+      if (DEBUG) {
+        const m = scene.map;
+        const st = m.style as unknown as { sourceCaches: Record<string, { loaded(): boolean }> };
+        const pending = Object.entries(st.sourceCaches)
+          .filter(([, c]) => !c.loaded())
+          .map(([k]) => k);
+        console.log(
+          `[export] frame ${i} idle ${Math.round(performance.now() - t0)}ms tilesLoaded=${m.areTilesLoaded()} pending=${pending.join(',')} moving=${m.isMoving()}`,
+        );
+      }
       ctx.fillStyle = preset.overlays.theme === 'dark' ? '#0b0f0d' : '#f3f1ea';
       ctx.fillRect(0, 0, W, H);
       ctx.drawImage(scene.canvas, 0, 0, W, Math.round(H * preset.mapHeight));
