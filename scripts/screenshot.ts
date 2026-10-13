@@ -15,7 +15,7 @@ export const GL_ARGS = [
   '--ignore-gpu-blocklist',
 ];
 
-function flag(args: string[], name: string, def?: string) {
+function flag(args: string[], name: string, def?: string): string | undefined {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : def;
 }
@@ -28,7 +28,7 @@ async function main() {
   const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
   try {
     if (mode === 'text') {
-      const title = flag(rest, 'title', '');
+      const title = flag(rest, 'title') ?? '';
       const body = escapeHtml(readFileSync(src, 'utf8'))
         .replace(/(MISS)/g, '<b class="y">$1</b>')
         .replace(/(HIT|passed|✓)/g, '<b class="g">$1</b>')
