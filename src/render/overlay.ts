@@ -148,7 +148,8 @@ export function drawOverlay(ctx: Ctx, w: number, h: number, s: OverlayState) {
     const pts = s.track.points;
     const top = pts[st.maxEleIndex];
     const reachedAt = st.maxEleIndex / Math.max(1, pts.length - 1);
-    const a = ease((s.progress - reachedAt + 0.02) / 0.04);
+    // fade in over the last stretch of the climb, fully visible on arrival
+    const a = ease((s.progress - (reachedAt - 0.06)) / 0.05);
     const pos = top ? s.project(top.lon, top.lat, top.ele ?? 0) : undefined;
     if (a > 0 && pos && pos[1] > SAFE_TOP + 200 && pos[1] < mapBottom - 40) {
       const [px, py] = [pos[0] / k, pos[1] / k];
