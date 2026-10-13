@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { formatDistance, formatDuration, formatElevation } from '../../track/stats';
 import { Profile } from '../components/Profile';
 import { RouteThumb } from '../components/RouteThumb';
+import { TrackFixSheet } from '../components/TrackFixSheet';
 import { useStore } from '../store';
 
 const DATUM_LABEL = { wgs84: 'WGS-84', gcj02: 'GCJ-02', bd09: 'BD-09' } as const;
@@ -10,6 +12,8 @@ export function TrackStep() {
   const title = useStore((s) => s.title);
   const setTitle = useStore((s) => s.setTitle);
   const units = useStore((s) => s.units);
+  const setUnits = useStore((s) => s.setUnits);
+  const [sheet, setSheet] = useState(false);
   const { stats, report, datum } = track;
   const fixed = report.coldStart + report.spikes + report.invalid;
 
@@ -64,6 +68,24 @@ export function TrackStep() {
         </li>
         <li className="ok">Smoothed the line and corrected elevation against terrain data</li>
       </ul>
+      <div className="row">
+        <button className="secondary" onClick={() => setSheet(true)}>
+          Adjust track…
+        </button>
+        <div className="segmented units" role="radiogroup" aria-label="Units">
+          <button role="radio" aria-checked={units === 'metric'} onClick={() => setUnits('metric')}>
+            km · m
+          </button>
+          <button
+            role="radio"
+            aria-checked={units === 'imperial'}
+            onClick={() => setUnits('imperial')}
+          >
+            mi · ft
+          </button>
+        </div>
+      </div>
+      {sheet && <TrackFixSheet onClose={() => setSheet(false)} />}
     </section>
   );
 }

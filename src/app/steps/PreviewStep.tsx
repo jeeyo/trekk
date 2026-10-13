@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapPreview } from '../components/MapPreview';
 import { Profile } from '../components/Profile';
 import { useStore } from '../store';
@@ -9,6 +9,12 @@ const DURATIONS = [15, 20, 30, 60];
 export function PreviewStep() {
   const { track, preset, timeline } = usePresetTimeline();
   const setDuration = useStore((s) => s.setDuration);
+  const title = useStore((s) => s.title);
+  const units = useStore((s) => s.units);
+  const overlay = useMemo(
+    () => (timeline ? { title, units, outroStart: 1 - timeline.outro } : undefined),
+    [title, units, timeline],
+  );
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const raf = useRef(0);
@@ -38,6 +44,7 @@ export function PreviewStep() {
         t={t}
         cameraAt={timeline.cameraAt}
         progressAt={timeline.progressAt}
+        overlay={overlay}
       />
       <div className="transport">
         <button

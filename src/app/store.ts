@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import type { CleanOptions } from '../track/clean';
 import type { Datum } from '../track/datum';
+import { trackInChina } from '../track/datum';
 import { browserTerrainFetcher } from '../track/elevation';
+import { fetchOsmPaths } from '../track/osmPaths';
 import { parseGpx } from '../track/parseGpx';
 import { processTrack, type ProcessedTrack } from '../track/pipeline';
 import type { ParsedTrack } from '../track/types';
@@ -47,8 +49,23 @@ interface State {
 const terrain = browserTerrainFetcher();
 const initialFix: TrackFix = { clean: {}, nudge: { east: 0, north: 0 } };
 
+// OSM paths are only needed to tell China datums apart; fetched once per file.
+const pathCache = new WeakMap<ParsedTrack, Promise<{ lat: number; lon: number }[][]>>();
+function pathsFor(parsed: ParsedTrack) {
+  if (!trackInChina(parsed.points)) return Promise.resolve([]);
+  if (!pathCache.has(parsed)) pathCache.set(parsed, fetchOsmPaths(parsed.points));
+  return pathCache.get(parsed)!;
+}
+
 async function run(parsed: ParsedTrack, fix: TrackFix) {
-  return processTrack(parsed, { clean: fix.clean, datum: fix.datum, nudge: fix.nudge, terrain });
+  const paths = await pathsFor(parsed);
+  return processTrack(parsed, {
+    clean: fix.clean,
+    datum: fix.datum,
+    nudge: fix.nudge,
+    terrain,
+    paths,
+  });
 }
 
 export const useStore = create<State>((set, get) => ({

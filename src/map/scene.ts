@@ -235,6 +235,16 @@ export class Scene {
     });
   }
 
+  /** Screen position (in canvas pixels) of a point on the terrain, or undefined if off-screen. */
+  project(lon: number, lat: number, ele: number): [number, number] | undefined {
+    const ratio = this.map.getPixelRatio();
+    const p = this.map.project([lon, lat]);
+    void ele; // MapLibre projects onto the rendered terrain surface
+    const c = this.map.getContainer();
+    if (p.x < 0 || p.y < 0 || p.x > c.clientWidth || p.y > c.clientHeight) return undefined;
+    return [p.x * ratio, p.y * ratio];
+  }
+
   get canvas(): HTMLCanvasElement {
     return this.map.getCanvas();
   }

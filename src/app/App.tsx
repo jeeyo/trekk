@@ -1,4 +1,5 @@
 import { TrackDebug } from './debug/TrackDebug';
+import { ExportStep } from './steps/ExportStep';
 import { PreviewStep } from './steps/PreviewStep';
 import { StyleStep } from './steps/StyleStep';
 import { TrackStep } from './steps/TrackStep';
@@ -70,8 +71,9 @@ export function App() {
         {step === 'track' && <TrackStep />}
         {step === 'style' && <StyleStep />}
         {step === 'preview' && <PreviewStep />}
+        {step === 'export' && <ExportStep />}
       </main>
-      {next && (
+      {next && step !== 'export' && (
         <footer className="actionbar">
           <button className="primary" disabled={busy} onClick={() => setStep(next.to)}>
             {busy ? 'Working…' : next.label}

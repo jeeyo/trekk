@@ -30,3 +30,10 @@ export function rewriteUpstream(url: string, origin = location.origin): string {
 
 export const TERRAIN_MAXZOOM = 15;
 export const SATELLITE_MAXZOOM = 15;
+
+export function attributionFor(base: 'satellite' | 'topo' | 'night' | 'minimal'): string {
+  const parts = [ATTRIBUTION.terrain];
+  if (base === 'satellite') parts.unshift(ATTRIBUTION.satellite);
+  if (base === 'topo' || base === 'night') parts.unshift(ATTRIBUTION.vector);
+  return parts.join(' · ');
+}
